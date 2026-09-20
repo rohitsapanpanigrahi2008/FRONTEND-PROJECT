@@ -1,0 +1,36 @@
+/* Touch-first: comfortable hit areas on coarse pointers */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  a.nav-item {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* Ultra-wide layouts: keep line lengths sane instead of stretching full-bleed */
+@media (min-width: 1920px) {
+  .ultra-contained {
+    max-width: 2240px;
+    margin-inline: auto;
+  }
+}
+
+@media (min-width: 2560px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+/* Safe-area padding for notched phones with the bottom nav */
+.mobile-nav-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Full-screen modals on small devices */
+@media (max-width: 639px) {
+  .modal-sheet {
+    inset: 0;
+    border-radius: 0;
+  }
+}

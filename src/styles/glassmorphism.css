@@ -1,0 +1,62 @@
+.glass-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  transition:
+    background 0.3s cubic-bezier(0.34, 1.4, 0.64, 1),
+    border-color 0.3s,
+    transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1),
+    box-shadow 0.3s;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 22px 48px rgba(2, 8, 23, 0.55);
+}
+
+.glass-panel {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(10, 15, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.glass-input:focus {
+  border-color: rgba(56, 189, 248, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+/* Decorative aurora blob behind hero/3D areas */
+.aurora::before,
+.aurora::after {
+  content: '';
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.aurora::before {
+  background: #0ea5e9;
+  top: -120px;
+  left: -80px;
+}
+.aurora::after {
+  background: #22d3a7;
+  bottom: -140px;
+  right: -60px;
+}
