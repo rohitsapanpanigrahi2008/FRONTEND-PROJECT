@@ -15,7 +15,7 @@ function cspPlugin() {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com",
         "img-src 'self' data: blob:",
-        "connect-src 'self' ws://localhost:* wss://localhost:*",
+        "connect-src 'self' ws://localhost:* wss://localhost:* https://geocoding-api.open-meteo.com https://air-quality-api.open-meteo.com",
         "worker-src 'self' blob:",
         "frame-ancestors 'none'",
         "base-uri 'self'",

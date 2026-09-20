@@ -25,12 +25,28 @@ import type {
   WasteData,
   WaterData,
 } from '@/types';
+import { useLiveAqi } from '@/hooks/useLiveAqi';
+import { useLocationStore } from '@/store/locationStore';
+import type { LiveAqi } from '@/types/location';
 import { formatEta, formatNumber, formatPct } from '@/utils/formatters';
 
 export default function ModuleDetailPage() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const meta = MODULES.find((m) => m.id === moduleId);
   const { data, isLoading, isError } = useModuleData((moduleId ?? '') as never);
+
+  // Live-location feature (hooks stay above any early return): only the
+  // air-quality module reacts to the selected city; every other module keeps
+  // the existing synthetic feed untouched.
+  const { data: liveAqi, status: aqiStatus } = useLiveAqi();
+  const selectedCity = useLocationStore((s) => s.selectedCity);
+  const isAirQuality = meta?.id === 'air-quality';
+  const live = isAirQuality && aqiStatus === 'ready' && liveAqi !== null ? liveAqi : null;
+  const liveLabel = selectedCity
+    ? selectedCity.admin1
+      ? `${selectedCity.name}, ${selectedCity.admin1}`
+      : `${selectedCity.name}, ${selectedCity.country}`
+    : null;
 
   if (!meta) {
     return (
@@ -74,11 +90,16 @@ export default function ModuleDetailPage() {
 
       <ErrorBoundary>
         <div className="glass-panel aurora relative h-[300px] overflow-hidden sm:h-[360px]">
-          <Viz3D moduleId={meta.id} data={data.data} />
+          {live && liveLabel && (
+            <span className="absolute left-4 top-4 z-10 rounded-full bg-emerald-400/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-300">
+              ● Live · {liveLabel}
+            </span>
+          )}
+          <Viz3D moduleId={meta.id} data={data.data} live={live} />
         </div>
       </ErrorBoundary>
 
-      <ModuleBody moduleId={meta.id} data={data.data} />
+      <ModuleBody moduleId={meta.id} data={data.data} live={live} liveLabel={liveLabel} />
       <ForecastPanel moduleId={meta.id} />
     </div>
   );
@@ -87,14 +108,17 @@ export default function ModuleDetailPage() {
 function Viz3D({
   moduleId,
   data,
+  live,
 }: {
   moduleId: string;
   data: AirQualityData | WasteData | EnergyData | WaterData | TrafficData | AssetData | SafetySummary | SustainabilityData;
+  live: LiveAqi | null;
 }) {
   switch (moduleId) {
     case 'air-quality': {
       const aq = data as AirQualityData;
-      const pm25 = aq.readings.find((r) => r.id === 'pm25')?.value ?? 50;
+      const livePm25 = live?.pollutants.find((p) => p.key === 'pm2_5')?.value;
+      const pm25 = livePm25 ?? aq.readings.find((r) => r.id === 'pm25')?.value ?? 50;
       return <AirQualityViz normalizedLevel={Math.min(100, (pm25 / 150) * 100)} />;
     }
     case 'energy': {
@@ -159,10 +183,20 @@ function GenericViz({ value, moduleId }: { value: number; moduleId: string }) {
 
 /* ---------------- Per-module data panels ---------------- */
 
-function ModuleBody({ moduleId, data }: { moduleId: string; data: unknown }) {
+function ModuleBody({
+  moduleId,
+  data,
+  live,
+  liveLabel,
+}: {
+  moduleId: string;
+  data: unknown;
+  live: LiveAqi | null;
+  liveLabel: string | null;
+}) {
   switch (moduleId) {
     case 'air-quality':
-      return <AirQualityBody data={data as AirQualityData} />;
+      return <AirQualityBody data={data as AirQualityData} live={live} liveLabel={liveLabel} />;
     case 'waste':
       return <WasteBody data={data as WasteData} />;
     case 'energy':
@@ -180,34 +214,71 @@ function ModuleBody({ moduleId, data }: { moduleId: string; data: unknown }) {
   }
 }
 
-function AirQualityBody({ data }: { data: AirQualityData }) {
+function AirQualityBody({
+  data,
+  live,
+  liveLabel,
+}: {
+  data: AirQualityData;
+  live: LiveAqi | null;
+  liveLabel: string | null;
+}) {
+  // Override PM2.5 / PM10 with live concentrations for the chosen city;
+  // CO₂ and VOC stay on the synthetic feed (no live source for those).
+  const readings = live
+    ? data.readings.map((r) => {
+        if (r.id === 'pm25') {
+          const v = live.pollutants.find((p) => p.key === 'pm2_5')?.value;
+          return v !== undefined ? { ...r, value: v, trendPct: 0 } : r;
+        }
+        if (r.id === 'pm10') {
+          const v = live.pollutants.find((p) => p.key === 'pm10')?.value;
+          return v !== undefined ? { ...r, value: v, trendPct: 0 } : r;
+        }
+        return r;
+      })
+    : data.readings;
+  const aq: AirQualityData = live
+    ? {
+        ...data,
+        readings,
+        aqi: live.aqi,
+        dominantPollutant: live.dominantPollutant,
+      }
+    : data;
+
   const cells = useMemo<HeatCell[]>(
     () =>
-      data.zonePm25.flatMap((z) =>
+      aq.zonePm25.flatMap((z) =>
         Array.from({ length: 8 }, (_, i) => ({
           zone: z.zone,
           hour: i * 3,
           value: Math.max(5, Math.min(100, z.pm25 + Math.sin(i / 2 + z.pm25) * 18)),
         })),
       ),
-    [data.zonePm25],
+    [aq.zonePm25],
   );
 
   return (
     <>
+      {live && liveLabel && (
+        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300">
+          ● Live readings · {liveLabel} · via Open-Meteo
+        </p>
+      )}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {data.readings.map((r, i) => (
+        {aq.readings.map((r, i) => (
           <MetricCard key={r.id} metric={r} index={i} />
         ))}
       </section>
       <section className="glass-card p-5">
         <h3 className="mb-3 text-sm font-semibold text-white">PM2.5 by zone × hour</h3>
-        <HeatmapChart cells={cells} zones={data.zonePm25.map((z) => z.zone)} unitLabel="PM2.5" />
+        <HeatmapChart cells={cells} zones={aq.zonePm25.map((z) => z.zone)} unitLabel="PM2.5" />
       </section>
       <section className="glass-card p-5">
         <h3 className="mb-3 text-sm font-semibold text-white">PM2.5 · 7-day trend</h3>
         <LineChartModule
-          points={data.readings[0].history}
+          points={aq.readings[0].history}
           color="#38bdf8"
           unit="µg/m³"
           height={220}

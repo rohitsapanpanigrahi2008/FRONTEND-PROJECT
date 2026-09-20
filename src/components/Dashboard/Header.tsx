@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDashboardStore } from '@/store/dashboardStore';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeToggle } from '@/components/Common/ThemeToggle';
+import { LocationSelector } from '@/components/Dashboard/LocationSelector';
 import { formatTime } from '@/utils/formatters';
 
 export function Header() {
@@ -35,6 +36,8 @@ export function Header() {
           {APP_NAME} <span className="hidden font-normal text-slate-400 sm:inline">· {APP_TAGLINE}</span>
         </h1>
       </div>
+
+      <LocationSelector />
 
       <button
         type="button"

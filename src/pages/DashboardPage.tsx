@@ -15,6 +15,7 @@ import { ErrorBoundary } from '@/components/Common/ErrorBoundary';
 import { LoadingSpinner } from '@/components/Common/LoadingSpinner';
 import type { Anomaly, Recommendation } from '@/types';
 import { formatNumber } from '@/utils/formatters';
+import { useLiveAqi, useActiveLocationLabel } from '@/hooks/useLiveAqi';
 
 const FacilityGlobe = lazy(() =>
   import('@/components/3D/FacilityGlobe').then((m) => ({ default: m.FacilityGlobe })),
@@ -26,6 +27,8 @@ export default function DashboardPage() {
   const { data: anomalies = [] } = useAnomalies();
   const { data: recommendations = [] } = useRecommendations();
   const [selected, setSelected] = useState<Anomaly | Recommendation | null>(null);
+  const { data: liveAqi, status: aqiStatus } = useLiveAqi();
+  const locationLabel = useActiveLocationLabel();
 
   if (isLoading || !summary) {
     return (
@@ -37,7 +40,11 @@ export default function DashboardPage() {
     );
   }
 
-  const band = aqiBand(summary.aqiNow);
+  // Live location feature: when a city is chosen, AQI-bound UI switches to real
+  // data; otherwise everything stays on the synthetic demo feed as before.
+  const isLiveAqi = aqiStatus === 'ready' && liveAqi !== null;
+  const aqiValue = liveAqi?.aqi ?? summary.aqiNow;
+  const band = aqiBand(aqiValue);
 
   return (
     <div className="space-y-6">
@@ -77,12 +84,44 @@ export default function DashboardPage() {
         <KpiCard
           icon={<Wind className="h-4 w-4" />}
           label="AQI now"
-          value={`${summary.aqiNow} · ${band.label}`}
+          value={`${aqiValue} · ${band.label}`}
+          sub={isLiveAqi ? `LIVE · ${locationLabel ?? ''}` : 'demo data'}
           accent={band.color}
         />
         <KpiCard icon={<Zap className="h-4 w-4" />} label="Energy today" value={`${formatNumber(summary.energyTodayKwh)} kWh`} accent="#fbbf24" />
         <KpiCard icon={<Droplets className="h-4 w-4" />} label="Water today" value={`${formatNumber(summary.waterTodayL)} L`} accent="#2dd4bf" />
       </section>
+
+      {/* Live pollutant strip — only rendered when a real location is selected */}
+      {isLiveAqi && liveAqi && (
+        <section
+          className="glass-card flex flex-wrap items-center gap-2 p-3"
+          aria-label="Live pollutant readings for selected location"
+        >
+          <span
+            className="mr-1 text-[10px] font-black uppercase tracking-widest"
+            style={{ color: band.color }}
+          >
+            ● Live · {locationLabel}
+          </span>
+          {liveAqi.pollutants.map((p) => (
+            <span
+              key={p.key}
+              className="glass-input px-2.5 py-1 text-[11px] text-slate-300"
+              title={`${p.label} concentration`}
+            >
+              <span className="font-semibold text-white">{p.label}</span> {p.value.toFixed(1)} {p.unit}
+            </span>
+          ))}
+          <span className="ml-auto text-[11px] text-slate-500">
+            Dominant: {liveAqi.dominantPollutant} · updated{' '}
+            {new Date(liveAqi.updatedAt).toLocaleTimeString('en-IN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </section>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-3">
         {/* Module grid + trend */}
@@ -177,11 +216,13 @@ function KpiCard({
   label,
   value,
   accent,
+  sub,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   accent: string;
+  sub?: string;
 }) {
   return (
     <div className="glass-card p-4" style={{ borderTop: `2px solid ${accent}` }}>
@@ -190,6 +231,11 @@ function KpiCard({
         {label}
       </div>
       <p className="mt-1.5 text-xl font-bold text-white">{value}</p>
+      {sub && (
+        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
